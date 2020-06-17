@@ -37,6 +37,8 @@ import {
   FinishOrderButton,
   ButtonText,
   IconContainer,
+  Overlay,
+  OverlayText,
 } from './styles';
 
 interface Params {
@@ -62,7 +64,15 @@ interface Food {
   category: number;
 }
 
-type Favorite = Omit<Food, 'id' | 'formattedPrice' | 'extras'>;
+interface Favorite {
+  id?: number;
+  name: string;
+  description: string;
+  price: number;
+  category: number;
+  image_url: string;
+  thumbnail_url: string;
+}
 
 interface Order {
   product_id: number;
@@ -77,9 +87,10 @@ interface Order {
 const FoodDetails: React.FC = () => {
   const [food, setFood] = useState({} as Food);
   const [extras, setExtras] = useState<Extra[]>([]);
-  const [favorites, setFavorites] = useState<Food[]>([]);
+  const [favorite, setFavorite] = useState({} as Favorite);
   const [isFavorite, setIsFavorite] = useState(false);
   const [foodQuantity, setFoodQuantity] = useState(1);
+  const [confirmed, setConfirmed] = useState(false);
 
   const navigation = useNavigation();
   const route = useRoute();
@@ -87,37 +98,27 @@ const FoodDetails: React.FC = () => {
   const routeParams = route.params as Params;
 
   useEffect(() => {
-    async function loadFood(): Promise<void> {
-      const { data } = await api.get<Food>(`foods/${routeParams.id}`);
+    async function loadApi(): Promise<void> {
+      const { data: foodData } = await api.get<Food>(`foods/${routeParams.id}`);
 
-      data.formattedPrice = formatValue(data.price);
+      if (foodData) {
+        foodData.formattedPrice = formatValue(foodData.price);
+        setFood(foodData);
+        setExtras(foodData.extras.map(extra => ({ ...extra, quantity: 0 })));
 
-      setFood(data);
+        const { data: favoriteData } = await api.get<Favorite[]>(
+          `favorites?name_like=${foodData.name}`,
+        );
 
-      setExtras(data.extras.map(extra => ({ ...extra, quantity: 0 })));
-    }
-
-    async function loadFavorites(): Promise<void> {
-      const { data } = await api.get<Food[]>('favorites');
-
-      setFavorites(data);
-    }
-
-    loadFood();
-    loadFavorites();
-  }, [routeParams]);
-
-  useEffect(() => {
-    if (food && favorites.length > 0) {
-      const favoriteIndex = favorites.findIndex(f => f.id === food.id);
-
-      if (favoriteIndex !== -1) {
-        setIsFavorite(true);
-      } else {
-        setIsFavorite(false);
+        if (favoriteData.length > 0) {
+          setIsFavorite(true);
+          setFavorite(favoriteData[0]);
+        }
       }
     }
-  }, [food, favorites]);
+
+    loadApi();
+  }, [routeParams]);
 
   function handleIncrementExtra(id: number): void {
     const extraIndex = extras.findIndex(extra => extra.id === id);
@@ -149,25 +150,23 @@ const FoodDetails: React.FC = () => {
   }
 
   const toggleFavorite = useCallback(async () => {
-    const favoriteIndex = favorites.findIndex(f => f.id === food.id);
-
-    if (favoriteIndex !== -1) {
-      const favorite: Favorite = {
+    if (!isFavorite) {
+      const { data } = await api.post('favorites', {
         name: food.name,
         description: food.description,
         price: food.price,
         category: food.category,
         image_url: food.image_url,
         thumbnail_url: food.thumbnail_url,
-      };
-
-      await api.post('favorites', favorite);
+      } as Favorite);
+      setFavorite(data);
     } else {
-      await api.delete(`favorites/${food.id}`);
+      setFavorite({} as Favorite);
+      await api.delete(`favorites/${favorite.id}`);
     }
 
-    setIsFavorite(state => !state);
-  }, [setIsFavorite, food, favorites]);
+    setIsFavorite(!isFavorite);
+  }, [setIsFavorite, food, isFavorite, favorite.id]);
 
   const cartTotal = useMemo(() => {
     const extrasTotal = extras.reduce(
@@ -190,8 +189,8 @@ const FoodDetails: React.FC = () => {
     };
 
     await api.post('orders', order);
-
-    navigation.goBack();
+    setConfirmed(true);
+    setTimeout(() => navigation.goBack(), 2000);
   }
 
   // Calculate the correct icon name
@@ -298,6 +297,13 @@ const FoodDetails: React.FC = () => {
           </FinishOrderButton>
         </TotalContainer>
       </ScrollContainer>
+
+      {confirmed && (
+        <Overlay>
+          <Icon name="thumbs-up" size={50} color="#39b100" />
+          <OverlayText>Pedido confirmado!</OverlayText>
+        </Overlay>
+      )}
     </Container>
   );
 };

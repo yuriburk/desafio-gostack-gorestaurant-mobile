@@ -171,3 +171,22 @@ export const IconContainer = styled.View`
   border-top-right-radius: 8px;
   border-bottom-right-radius: 8px;
 `;
+
+export const Overlay = styled.View`
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+`;
+
+export const OverlayText = styled.Text`
+  color: #fff;
+  font-size: 25px;
+  font-weight: bold;
+  margin-top: 15px;
+`;
